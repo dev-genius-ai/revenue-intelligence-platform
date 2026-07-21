@@ -1,0 +1,31 @@
+campaign_id,campaign_name,channel,budget_usd,start_date,end_date,target_company_id
+CMP-001,Spring Launch 2023,youtube,15000,2023-03-01,2023-04-30,CTC-001
+CMP-002,Newsletter Growth Q2,newsletter,5000,2023-04-01,2023-06-30,
+CMP-003,Summer Education Push,instagram,12000,2023-06-15,2023-08-31,CTC-002
+CMP-004,Auto Repair Awareness,youtube,18000,2023-07-01,2023-09-30,CTC-003
+CMP-005,Podcast Sponsorship S1,podcast,8000,2023-01-01,2023-06-30,
+CMP-006,Blog SEO Push,blog,4000,2023-03-01,2023-12-31,
+CMP-007,Holiday Dental Promo,twitter,9000,2023-11-01,2023-12-31,CTC-004
+CMP-008,New Year Push 2024,youtube,22000,2024-01-01,2024-02-28,
+CMP-009,Twitter Engagement Q1 24,twitter,6500,2024-01-15,2024-03-31,
+CMP-010,Instagram Stories Blitz,instagram,11000,2024-02-01,2024-04-30,CTC-001
+CMP-011,Podcast Sponsorship S2,podcast,10000,2023-07-01,2023-12-31,
+CMP-012,Spring Services 2024,blog,5500,2024-03-01,2024-05-31,CTC-001
+CMP-013,Auto Summer Campaign,youtube,16000,2024-05-01,2024-07-31,CTC-003
+CMP-014,Education Fall Enrollment,newsletter,7000,2024-08-01,2024-10-31,CTC-002
+CMP-015,Year-End Portfolio Push,instagram,13000,2024-10-01,2024-12-31,
+CMP-016,Newsletter Referral Program,newsletter,3500,2023-09-01,2023-11-30,
+CMP-017,Dental Awareness Month,blog,4500,2024-02-01,2024-02-28,CTC-004
+CMP-018,YouTube Shorts Experiment,youtube,8500,2024-04-01,2024-06-30,
+CMP-019,Cross-Promo Landscaping x Auto,twitter,5000,2024-06-01,2024-08-31,CTC-001
+CMP-020,Back to School 2024,instagram,9500,2024-08-15,2024-09-30,CTC-002
+CMP-021,Podcast Guest Series,podcast,6000,2024-03-01,2024-06-30,
+CMP-022,LinkedIn Thought Leadership,blog,3000,2024-07-01,2024-09-30,
+CMP-023,Holiday Season 2024,youtube,25000,2024-11-01,2024-12-31,
+CMP-024,Q4 Newsletter Blast,newsletter,4000,2024-10-01,2024-12-31,
+CMP-025,Summit Dental Rebrand,twitter,7500,2024-06-01,2024-08-31,CTC-004
+CMP-026,Auto Repair Winter Prep,blog,3800,2024-09-01,2024-11-30,CTC-003
+CMP-027,Portfolio Awareness General,youtube,12000,2023-08-01,2023-10-31,
+CMP-028,Instagram Reel Strategy,instagram,8000,2023-09-01,2023-11-30,
+CMP-029,Podcast Ad Insert Q3 24,podcast,5500,2024-07-01,2024-09-30,
+CMP-030,Multi-Channel Black Friday,newsletter,15000,2024-11-15,2024-12-02,
