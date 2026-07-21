@@ -288,6 +288,7 @@ models:
                   - blog
                   - organic
                   - referral
+
       - name: utm_medium
         description: Normalized optional UTM medium; missing values remain null.
       - name: utm_campaign
@@ -332,3 +333,258 @@ models:
                   - blog
                   - organic
                   - referral
+
+  - name: int_user_journeys
+    description: >
+      One row per signup user with independently resolved first-touch and
+      last-touch channels, validated campaign matches, and attribution quality
+      indicators. This model applies deterministic attribution fallbacks but does
+      not join or aggregate revenue.
+    columns:
+      - name: user_id
+        description: User identifier and model primary key.
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('stg_user_signups')
+                field: user_id
+      - name: company_id
+        description: Portfolio company associated with the signup.
+        data_tests:
+          - not_null
+      - name: signup_date
+        description: Date on which the user signed up.
+        data_tests:
+          - not_null
+      - name: first_touch_channel
+        description: Normalized first-touch channel supplied by the signup source.
+      - name: last_touch_channel
+        description: Normalized last-touch channel supplied by the signup source.
+      - name: utm_source
+        description: Normalized signup UTM source, which may be null.
+      - name: utm_medium
+        description: Normalized signup UTM medium, which may be null.
+      - name: utm_campaign
+        description: Normalized signup UTM campaign slug, which may be null.
+      - name: referral_source
+        description: Normalized signup referral source, which may be null.
+      - name: first_touch_resolved_channel
+        description: >
+          First-touch channel selected from first_touch_channel, utm_source,
+          referral_source, then unknown.
+        data_tests:
+          - not_null
+      - name: first_touch_attribution_reason
+        description: Field that supplied the resolved first-touch channel.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - first_touch_channel
+                  - utm_source
+                  - referral_source
+                  - unknown
+      - name: last_touch_resolved_channel
+        description: >
+          Last-touch channel selected from last_touch_channel, utm_source,
+          referral_source, then unknown.
+        data_tests:
+          - not_null
+      - name: last_touch_attribution_reason
+        description: Field that supplied the resolved last-touch channel.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - last_touch_channel
+                  - utm_source
+                  - referral_source
+                  - unknown
+      - name: has_channel_conflict
+        description: >
+          True when populated first-touch and last-touch channels differ.
+        data_tests:
+          - not_null
+      - name: missing_utm_flag
+        description: >
+          True when any of UTM source, medium, or campaign is missing.
+        data_tests:
+          - not_null
+      - name: first_touch_campaign_id
+        description: >
+          Campaign assigned to the first-touch path after all campaign validation
+          rules pass; otherwise null.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_campaign_metadata')
+                field: campaign_id
+      - name: last_touch_campaign_id
+        description: >
+          Campaign assigned to the last-touch path after all campaign validation
+          rules pass; otherwise null.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_campaign_metadata')
+                field: campaign_id
+      - name: first_touch_campaign_match_status
+        description: Campaign match outcome for the first-touch path.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - matched
+                  - missing_utm_campaign
+                  - unmatched_or_invalid
+      - name: last_touch_campaign_match_status
+        description: Campaign match outcome for the last-touch path.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - matched
+                  - missing_utm_campaign
+                  - unmatched_or_invalid
+      - name: campaign_match_status
+        description: Combined campaign match outcome across both attribution paths.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - matched_both
+                  - matched_first_touch_only
+                  - matched_last_touch_only
+                  - missing_utm_campaign
+                  - unmatched_or_invalid
+      - name: attribution_confidence
+        description: >
+          Overall high, medium, or low quality classification based on resolved
+          channels, campaign validation, UTM completeness, and channel conflicts.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [high, medium, low]
+
+  - name: int_attributed_revenue
+    description: >
+      Revenue events enriched with both first-touch and last-touch journey
+      outcomes. The source revenue grain is preserved at exactly one row per
+      revenue_id; no revenue allocation or aggregation occurs in this model.
+    columns:
+      - name: revenue_id
+        description: Revenue event identifier and model primary key.
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('stg_portfolio_revenue')
+                field: revenue_id
+      - name: user_id
+        description: User associated with the revenue event.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_user_signups')
+                field: user_id
+          - relationships:
+              arguments:
+                to: ref('int_user_journeys')
+                field: user_id
+      - name: company_id
+        description: Portfolio company receiving the revenue.
+        data_tests:
+          - not_null
+      - name: revenue_amount
+        description: Unallocated source revenue amount.
+        data_tests:
+          - not_null
+      - name: revenue_month
+        description: First day of the source revenue month.
+        data_tests:
+          - not_null
+      - name: is_recurring
+        description: Source recurring-revenue indicator.
+        data_tests:
+          - not_null
+      - name: signup_date
+        description: Signup date inherited from the matched user journey.
+        data_tests:
+          - not_null
+      - name: first_touch_channel
+        description: Original normalized first-touch channel from staging.
+      - name: last_touch_channel
+        description: Original normalized last-touch channel from staging.
+      - name: first_touch_resolved_channel
+        description: Resolved channel for first-touch attribution.
+        data_tests:
+          - not_null
+      - name: last_touch_resolved_channel
+        description: Resolved channel for last-touch attribution.
+        data_tests:
+          - not_null
+      - name: first_touch_attribution_reason
+        description: Field used to resolve the first-touch channel.
+        data_tests:
+          - not_null
+      - name: last_touch_attribution_reason
+        description: Field used to resolve the last-touch channel.
+        data_tests:
+          - not_null
+      - name: first_touch_campaign
+        description: Validated campaign identifier for the first-touch path.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_campaign_metadata')
+                field: campaign_id
+      - name: last_touch_campaign
+        description: Validated campaign identifier for the last-touch path.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_campaign_metadata')
+                field: campaign_id
+      - name: has_channel_conflict
+        description: User-level first-touch versus last-touch conflict flag.
+        data_tests:
+          - not_null
+      - name: missing_utm_flag
+        description: User-level UTM completeness flag.
+        data_tests:
+          - not_null
+      - name: first_touch_campaign_match_status
+        description: First-touch campaign validation outcome.
+        data_tests:
+          - not_null
+      - name: last_touch_campaign_match_status
+        description: Last-touch campaign validation outcome.
+        data_tests:
+          - not_null
+      - name: campaign_match_status
+        description: Combined campaign validation outcome.
+        data_tests:
+          - not_null
+      - name: attribution_confidence
+        description: User-level attribution quality classification.
+        data_tests:
+          - not_null
+      - name: missing_journey_flag
+        description: >
+          True when no user journey joined to a revenue event. Expected to remain
+          false because ingestion validates user referential integrity.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [false]

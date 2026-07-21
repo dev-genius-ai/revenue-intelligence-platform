@@ -14,3 +14,6 @@ models:
   customer_revenue_attribution:
     staging:
       +materialized: table
+    intermediate:
+      +materialized: table
+      +schema: intermediate
