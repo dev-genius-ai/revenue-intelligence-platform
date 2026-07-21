@@ -8,8 +8,8 @@ companies. The completed pipeline will provide tested attribution models, campai
 channel analytics, and short-term revenue forecasts.
 
 The repository is being developed incrementally. The project foundation, local raw
-ingestion layer, dbt staging layer, and intermediate attribution engine are complete;
-analytics and forecasting will be added in later phases.
+ingestion layer, dbt staging layer, intermediate attribution engine, and star schema
+marts are complete; analytics and forecasting will be added in later phases.
 
 ## Architecture
 
@@ -37,14 +37,23 @@ warehouse.duckdb
 │   ├── stg_content_performance
 │   ├── stg_portfolio_revenue
 │   └── stg_user_signups
-└── intermediate
-    ├── int_user_journeys
-    └── int_attributed_revenue
+├── intermediate
+│   ├── int_user_journeys
+│   └── int_attributed_revenue
+└── marts
+    ├── dim_channel
+    ├── dim_company
+    ├── dim_time
+    ├── dim_user_cohort
+    ├── fct_attributed_revenue
+    ├── fct_campaign_roi
+    └── fct_content_performance
 ```
 
 The database location can be changed with `--db-path`. The source directory can be
 changed with `--data-dir`. dbt reads only from `raw` and materializes cleaned tables in
-`staging`; attribution models are materialized separately in `intermediate`.
+`staging`; attribution models are materialized in `intermediate`, and conformed facts
+and dimensions are materialized in `marts`.
 
 ## Tech Stack
 
@@ -64,7 +73,7 @@ changed with `--data-dir`. dbt reads only from `raw` and materializes cleaned ta
 │   ├── raw/             # Immutable source data
 │   └── processed/       # Generated intermediate data
 ├── ingestion/           # Raw ingestion and validation code
-├── dbt_project/         # dbt staging/intermediate models, documentation, and tests
+├── dbt_project/         # dbt staging, intermediate, and marts models with tests
 ├── analytics/           # Future analytical SQL and execution utilities
 ├── outputs/             # Generated reports and query results
 ├── notebooks/           # Optional exploratory analysis
@@ -88,10 +97,12 @@ The starter assessment files currently remain unchanged in `data/`.
    and enforce generic schema and relationship tests.
 4. **Completed: Journey stitching and attribution** — resolve first-touch and
    last-touch channels, validate campaigns, and enrich source-grain revenue.
-5. **Analytics** — answer the required channel, campaign, CAC, cohort, and revenue-trend
+5. **Completed: Star schema marts** — publish conformed dimensions and tested revenue,
+   campaign ROI, and content performance facts.
+6. **Analytics** — answer the required channel, campaign, CAC, cohort, and revenue-trend
    questions.
-6. **Forecasting** — generate transparent three-month forecasts by company and channel.
-7. **Documentation and verification** — publish assumptions, limitations, lineage,
+7. **Forecasting** — generate transparent three-month forecasts by company and channel.
+8. **Documentation and verification** — publish assumptions, limitations, lineage,
    sample outputs, and reproducible setup instructions.
 
 ## Data Sources
@@ -175,6 +186,30 @@ aggregating amounts, preserving exactly one row per `revenue_id`.
 - The confidence label is a deterministic data-quality indicator, not a statistical
   probability or causal estimate.
 
+## Star Schema Marts
+
+The `marts` schema exposes three facts at explicit business grains:
+
+- `fct_attributed_revenue`: one row per `revenue_id`, with first-touch and last-touch
+  channel and campaign keys. Revenue values are copied unchanged from the intermediate
+  layer.
+- `fct_campaign_roi`: one row per `campaign_id`, with budget, attributed revenue,
+  customer counts, ROAS, and ROI calculated separately for both attribution methods.
+- `fct_content_performance`: one row per publication month, channel, and validated
+  campaign combination, with content count, views, clicks, and click-through rate.
+
+Four conformed dimensions provide descriptive context:
+
+- `dim_channel`: normalized channel labels and channel groups.
+- `dim_company`: portfolio company names and industries.
+- `dim_time`: a daily date spine covering all staged source dates.
+- `dim_user_cohort`: one row per signup-month cohort.
+
+Facts retain business identifiers and foreign keys rather than repeating descriptive
+labels. dbt relationships enforce fact-to-dimension integrity. Singular tests confirm
+that fact measures are non-negative and that `fct_attributed_revenue` preserves both the
+record count and total revenue from `int_attributed_revenue`.
+
 ## Forecasting Approach
 
 The completed pipeline will provide a three-month revenue forecast for each portfolio
@@ -214,8 +249,9 @@ dbt run --profiles-dir .
 dbt test --profiles-dir .
 ```
 
-From the repository root, `make transform` runs the dbt staging models using the same
-local profile. Activate the project virtual environment first so `dbt` is available.
+From the repository root, `make transform` runs all dbt staging, intermediate, and marts
+models using the same local profile. Activate the project virtual environment first so
+`dbt` is available.
 
 The following command names are reserved for later phases and currently print placeholder
 messages:

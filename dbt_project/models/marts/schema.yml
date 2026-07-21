@@ -1,0 +1,448 @@
+version: 2
+
+models:
+  - name: dim_channel
+    description: >
+      Conformed channel dimension containing every normalized channel observed in
+      staging or resolved by the attribution engine, plus an explicit unknown
+      member. One row represents one channel business key.
+    columns:
+      - name: channel_key
+        description: Normalized channel business key used by fact tables.
+        data_tests:
+          - not_null
+          - unique
+          - accepted_values:
+              arguments:
+                values:
+                  - youtube
+                  - twitter
+                  - instagram
+                  - newsletter
+                  - podcast
+                  - blog
+                  - organic
+                  - referral
+                  - direct
+                  - word_of_mouth
+                  - unknown
+      - name: channel_name
+        description: Human-readable channel label.
+        data_tests:
+          - not_null
+      - name: channel_group
+        description: High-level grouping used to organize channel types.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - social
+                  - owned_content
+                  - organic
+                  - referral
+                  - unknown
+                  - other
+
+  - name: dim_company
+    description: >
+      Conformed portfolio company dimension assembled from company identifiers
+      observed in staging and enriched with the assessment's company metadata.
+      One row represents one portfolio company.
+    columns:
+      - name: company_id
+        description: Stable portfolio company business key.
+        data_tests:
+          - not_null
+          - unique
+          - accepted_values:
+              arguments:
+                values: [CTC-001, CTC-002, CTC-003, CTC-004]
+      - name: company_name
+        description: Human-readable portfolio company name.
+        data_tests:
+          - not_null
+      - name: industry
+        description: Industry in which the portfolio company operates.
+        data_tests:
+          - not_null
+
+  - name: dim_time
+    description: >
+      Daily calendar dimension spanning the minimum and maximum dates present in
+      the staging sources. Date keys use the YYYYMMDD integer convention.
+    columns:
+      - name: date_key
+        description: Integer calendar key in YYYYMMDD format.
+        data_tests:
+          - not_null
+          - unique
+      - name: date_day
+        description: Calendar date represented by this row.
+        data_tests:
+          - not_null
+          - unique
+      - name: week_start_date
+        description: First day of the calendar week.
+        data_tests:
+          - not_null
+      - name: month_start_date
+        description: First day of the calendar month.
+        data_tests:
+          - not_null
+      - name: month_key
+        description: Integer month key in YYYYMM format.
+        data_tests:
+          - not_null
+      - name: day_of_month
+        description: Numeric day within the month.
+        data_tests:
+          - not_null
+      - name: month_number
+        description: Numeric month within the year.
+        data_tests:
+          - not_null
+      - name: month_name
+        description: Full English month name.
+        data_tests:
+          - not_null
+      - name: quarter_number
+        description: Calendar quarter number.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4]
+      - name: year_number
+        description: Four-digit calendar year.
+        data_tests:
+          - not_null
+      - name: iso_day_of_week
+        description: ISO weekday number where Monday is 1 and Sunday is 7.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5, 6, 7]
+      - name: is_weekend
+        description: True for Saturday and Sunday.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+
+  - name: dim_user_cohort
+    description: >
+      Monthly signup cohort dimension. One row represents one distinct signup
+      month observed in staging, identified by a YYYYMM cohort key.
+    columns:
+      - name: cohort_key
+        description: Integer signup cohort key in YYYYMM format.
+        data_tests:
+          - not_null
+          - unique
+      - name: cohort_month
+        description: First calendar day of the signup cohort month.
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('dim_time')
+                field: date_day
+      - name: cohort_label
+        description: Signup cohort label formatted as YYYY-MM.
+        data_tests:
+          - not_null
+          - unique
+      - name: cohort_month_number
+        description: Numeric month represented by the cohort.
+        data_tests:
+          - not_null
+      - name: cohort_quarter
+        description: Calendar quarter represented by the cohort.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4]
+      - name: cohort_year
+        description: Four-digit year represented by the cohort.
+        data_tests:
+          - not_null
+
+  - name: fct_attributed_revenue
+    description: >
+      Revenue fact at exactly one row per revenue_id. It exposes the independently
+      resolved first-touch and last-touch channel and campaign keys while carrying
+      the unchanged source revenue amount. Descriptive labels are intentionally
+      provided by conformed dimensions rather than duplicated in this fact.
+    columns:
+      - name: revenue_id
+        description: Revenue event business key and fact primary key.
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('int_attributed_revenue')
+                field: revenue_id
+      - name: user_id
+        description: User associated with the revenue event.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_user_signups')
+                field: user_id
+      - name: company_id
+        description: Foreign key to the portfolio company dimension.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_company')
+                field: company_id
+      - name: revenue_date_key
+        description: Foreign key to the revenue month-start row in dim_time.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_time')
+                field: date_key
+      - name: signup_date_key
+        description: Foreign key to the user's exact signup date in dim_time.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_time')
+                field: date_key
+      - name: cohort_key
+        description: Foreign key to the user's signup-month cohort.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_user_cohort')
+                field: cohort_key
+      - name: first_touch_channel
+        description: Foreign key to the channel credited by first-touch attribution.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_channel')
+                field: channel_key
+      - name: last_touch_channel
+        description: Foreign key to the channel credited by last-touch attribution.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_channel')
+                field: channel_key
+      - name: first_touch_campaign_id
+        description: Validated first-touch campaign identifier, when available.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_campaign_metadata')
+                field: campaign_id
+      - name: last_touch_campaign_id
+        description: Validated last-touch campaign identifier, when available.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_campaign_metadata')
+                field: campaign_id
+      - name: first_touch_attribution_reason
+        description: Field used by the intermediate model to resolve first touch.
+        data_tests:
+          - not_null
+      - name: last_touch_attribution_reason
+        description: Field used by the intermediate model to resolve last touch.
+        data_tests:
+          - not_null
+      - name: revenue_amount
+        description: Fully conserved source revenue amount in US dollars.
+        data_tests:
+          - not_null
+      - name: is_recurring
+        description: Whether this is a recurring revenue event.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: has_channel_conflict
+        description: Whether first-touch and last-touch source channels differ.
+        data_tests:
+          - not_null
+      - name: missing_utm_flag
+        description: Whether any signup UTM component is missing.
+        data_tests:
+          - not_null
+      - name: first_touch_campaign_match_status
+        description: First-touch campaign validation outcome.
+        data_tests:
+          - not_null
+      - name: last_touch_campaign_match_status
+        description: Last-touch campaign validation outcome.
+        data_tests:
+          - not_null
+      - name: campaign_match_status
+        description: Combined campaign validation outcome.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - matched_both
+                  - matched_first_touch_only
+                  - matched_last_touch_only
+                  - missing_utm_campaign
+                  - unmatched_or_invalid
+      - name: attribution_confidence
+        description: Attribution data-quality classification inherited from intermediate.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [high, medium, low]
+
+  - name: fct_campaign_roi
+    description: >
+      Campaign-level ROI fact at one row per campaign_id. Budget is stored once,
+      while attributed revenue, customer counts, ROAS, and ROI are calculated
+      separately for first-touch and last-touch attribution.
+    columns:
+      - name: campaign_id
+        description: Campaign business key and fact primary key.
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('stg_campaign_metadata')
+                field: campaign_id
+      - name: channel
+        description: Foreign key to the campaign channel dimension.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_channel')
+                field: channel_key
+      - name: target_company_id
+        description: >
+          Optional foreign key to the targeted company; null means portfolio-wide.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_company')
+                field: company_id
+      - name: start_date_key
+        description: Foreign key to the campaign start date in dim_time.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_time')
+                field: date_key
+      - name: end_date_key
+        description: Foreign key to the campaign end date in dim_time.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_time')
+                field: date_key
+      - name: budget_usd
+        description: Campaign budget in US dollars.
+        data_tests:
+          - not_null
+      - name: first_touch_attributed_revenue
+        description: Revenue assigned to the campaign by first touch.
+        data_tests:
+          - not_null
+      - name: last_touch_attributed_revenue
+        description: Revenue assigned to the campaign by last touch.
+        data_tests:
+          - not_null
+      - name: first_touch_customers
+        description: Distinct campaign customers under first-touch attribution.
+        data_tests:
+          - not_null
+      - name: last_touch_customers
+        description: Distinct campaign customers under last-touch attribution.
+        data_tests:
+          - not_null
+      - name: first_touch_roas
+        description: First-touch attributed revenue divided by campaign budget.
+        data_tests:
+          - not_null
+      - name: last_touch_roas
+        description: Last-touch attributed revenue divided by campaign budget.
+        data_tests:
+          - not_null
+      - name: first_touch_roi
+        description: First-touch net return divided by campaign budget.
+        data_tests:
+          - not_null
+      - name: last_touch_roi
+        description: Last-touch net return divided by campaign budget.
+        data_tests:
+          - not_null
+
+  - name: fct_content_performance
+    description: >
+      Monthly content performance fact at one row per publication month, channel,
+      and validated campaign combination. Content without a valid campaign remains
+      in the fact with a null campaign_id. The hashed key represents this compound
+      business grain.
+    columns:
+      - name: content_performance_key
+        description: Deterministic key for month-channel-campaign grain.
+        data_tests:
+          - not_null
+          - unique
+      - name: publish_month_date_key
+        description: Foreign key to the publication month-start row in dim_time.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_time')
+                field: date_key
+      - name: channel
+        description: Foreign key to the publishing channel dimension.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_channel')
+                field: channel_key
+      - name: campaign_id
+        description: Validated campaign identifier, when available.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_campaign_metadata')
+                field: campaign_id
+      - name: content_count
+        description: Number of content items in this fact row.
+        data_tests:
+          - not_null
+      - name: views
+        description: Total content views in this fact row.
+        data_tests:
+          - not_null
+      - name: clicks
+        description: Total content clicks in this fact row.
+        data_tests:
+          - not_null
+      - name: click_through_rate
+        description: Clicks divided by views; null only when views are zero.
