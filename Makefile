@@ -4,10 +4,10 @@ install:
 	python -m pip install -r requirements.txt
 
 ingest:
-	@echo "Ingestion will be implemented in a later phase."
+	python ingestion/load_raw.py
 
 validate:
-	@echo "Validation will be implemented in a later phase."
+	python ingestion/validate.py
 
 transform:
 	@echo "dbt transformations will be implemented in a later phase."
