@@ -18,6 +18,7 @@ htmlcov/
 dbt_project/target/
 dbt_project/logs/
 dbt_project/dbt_packages/
+dbt_project/.user.yml
 
 # Generated and processed data
 data/processed/*

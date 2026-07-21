@@ -7,9 +7,9 @@ performance and customer acquisition data to revenue generated across a portfoli
 companies. The completed pipeline will provide tested attribution models, campaign and
 channel analytics, and short-term revenue forecasts.
 
-The repository is being developed incrementally. The project foundation and local raw
-ingestion layer are complete; transformation, attribution, analytics, and forecasting
-will be added in later phases.
+The repository is being developed incrementally. The project foundation, local raw
+ingestion layer, and dbt staging layer are complete; attribution, analytics, and
+forecasting will be added in later phases.
 
 ## Architecture
 
@@ -26,16 +26,22 @@ CSV and JSON source files
           │
           ▼
 warehouse.duckdb
-└── raw
-    ├── campaign_metadata
-    ├── content_performance
-    ├── portfolio_revenue
-    ├── user_signups
-    └── validation_results
+├── raw
+│   ├── campaign_metadata
+│   ├── content_performance
+│   ├── portfolio_revenue
+│   ├── user_signups
+│   └── validation_results
+└── staging
+    ├── stg_campaign_metadata
+    ├── stg_content_performance
+    ├── stg_portfolio_revenue
+    └── stg_user_signups
 ```
 
 The database location can be changed with `--db-path`. The source directory can be
-changed with `--data-dir`.
+changed with `--data-dir`. dbt reads only from `raw` and materializes cleaned tables in
+`staging`.
 
 ## Tech Stack
 
@@ -55,7 +61,7 @@ changed with `--data-dir`.
 │   ├── raw/             # Immutable source data
 │   └── processed/       # Generated intermediate data
 ├── ingestion/           # Raw ingestion and validation code
-├── dbt_project/         # Future dbt configuration, models, and tests
+├── dbt_project/         # dbt configuration, staging models, documentation, and tests
 ├── analytics/           # Future analytical SQL and execution utilities
 ├── outputs/             # Generated reports and query results
 ├── notebooks/           # Optional exploratory analysis
@@ -75,8 +81,8 @@ The starter assessment files currently remain unchanged in `data/`.
    documentation skeleton.
 2. **Completed: Ingestion and validation** — idempotently load each source into DuckDB
    and report structural and data-quality issues.
-3. **dbt transformations** — build staging, intermediate, dimensional, and fact models
-   with automated tests.
+3. **Completed: dbt staging foundation** — clean and type raw sources, document models,
+   and enforce generic schema and relationship tests.
 4. **Revenue attribution** — implement and compare last-touch and first-touch models.
 5. **Analytics** — answer the required channel, campaign, CAC, cohort, and revenue-trend
    questions.
@@ -106,6 +112,26 @@ Structural, numeric, date, and referential-integrity problems are reported as `F
 Expected attribution-quality problems are reported as `WARN` and do not cause ingestion
 to fail. Every result is appended to `raw.validation_results` with its check name,
 status, message, and UTC timestamp.
+
+## dbt Staging Layer
+
+The dbt project in `dbt_project/` connects to the existing repository-level
+`warehouse.duckdb`. Its four staging models retain their source grain and perform only
+source-conforming cleanup:
+
+- `stg_campaign_metadata` standardizes identifiers and channels, types campaign dates
+  and budgets, and derives a normalized campaign slug.
+- `stg_content_performance` standardizes channels and UTM values, types dates and
+  engagement metrics, and adds the publication month.
+- `stg_portfolio_revenue` standardizes identifiers, converts `month` to a DATE, and
+  retains one row per source revenue event.
+- `stg_user_signups` standardizes identifiers, signup dates, referral/UTM values, and
+  first/last-touch channel values while preserving missing values and conflicts.
+
+No attribution decisions, journey stitching, revenue allocation, or aggregate analytics
+occur in staging. Model and source documentation is maintained in
+`dbt_project/models/schema.yml`. Tests cover primary-key uniqueness and completeness,
+accepted channel/company values, and campaign/user relationships.
 
 ## Attribution Approach
 
@@ -149,11 +175,22 @@ python ingestion/load_raw.py --db-path /path/to/warehouse.duckdb --data-dir /pat
 python ingestion/validate.py --db-path /path/to/warehouse.duckdb
 ```
 
+After ingestion, run dbt locally:
+
+```bash
+cd dbt_project
+dbt debug --profiles-dir .
+dbt run --profiles-dir .
+dbt test --profiles-dir .
+```
+
+From the repository root, `make transform` runs the dbt staging models using the same
+local profile. Activate the project virtual environment first so `dbt` is available.
+
 The following command names are reserved for later phases and currently print placeholder
 messages:
 
 ```bash
-make transform
 make analytics
 make run
 ```

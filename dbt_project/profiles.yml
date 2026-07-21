@@ -1,0 +1,10 @@
+# Local development profile. Run dbt from this directory so the relative path
+# resolves to the repository-level warehouse.duckdb file.
+customer_revenue_attribution:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../warehouse.duckdb
+      schema: staging
+      threads: 4

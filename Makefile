@@ -10,7 +10,7 @@ validate:
 	python ingestion/validate.py
 
 transform:
-	@echo "dbt transformations will be implemented in a later phase."
+	cd dbt_project && dbt run --profiles-dir .
 
 analytics:
 	@echo "Analytics will be implemented in a later phase."
