@@ -1,4 +1,4 @@
-.PHONY: install ingest validate transform analytics run
+.PHONY: install ingest validate transform analytics forecast run
 
 install:
 	python -m pip install -r requirements.txt
@@ -13,7 +13,13 @@ transform:
 	cd dbt_project && dbt run --profiles-dir .
 
 analytics:
-	@echo "Analytics will be implemented in a later phase."
+	cd dbt_project && dbt run --select path:models/analytics --profiles-dir .
+
+forecast:
+	python forecasting/run_forecast.py
 
 run:
-	@echo "The end-to-end pipeline will be implemented in a later phase."
+	python ingestion/load_raw.py
+	python ingestion/validate.py
+	cd dbt_project && dbt run --profiles-dir .
+	python forecasting/run_forecast.py

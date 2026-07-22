@@ -8,8 +8,8 @@ companies. The completed pipeline will provide tested attribution models, campai
 channel analytics, and short-term revenue forecasts.
 
 The repository is being developed incrementally. The project foundation, local raw
-ingestion layer, dbt staging layer, intermediate attribution engine, and star schema
-marts are complete; analytics and forecasting will be added in later phases.
+ingestion layer, dbt staging layer, intermediate attribution engine, star schema
+marts, analytics layer, and Holt exponential-smoothing forecasting pipeline are complete.
 
 ## Architecture
 
@@ -40,20 +40,30 @@ warehouse.duckdb
 ├── intermediate
 │   ├── int_user_journeys
 │   └── int_attributed_revenue
-└── marts
-    ├── dim_channel
-    ├── dim_company
-    ├── dim_time
-    ├── dim_user_cohort
-    ├── fct_attributed_revenue
-    ├── fct_campaign_roi
-    └── fct_content_performance
+├── marts
+│   ├── dim_channel
+│   ├── dim_company
+│   ├── dim_time
+│   ├── dim_user_cohort
+│   ├── fct_attributed_revenue
+│   ├── fct_campaign_roi
+│   └── fct_content_performance
+├── analytics
+│   ├── channel_performance
+│   ├── campaign_performance
+│   ├── company_revenue_analysis
+│   └── monthly_revenue_customer_growth
+└── forecasting
+    ├── revenue_forecast
+    ├── forecast_metrics
+    └── forecast_comparison
 ```
 
 The database location can be changed with `--db-path`. The source directory can be
 changed with `--data-dir`. dbt reads only from `raw` and materializes cleaned tables in
-`staging`; attribution models are materialized in `intermediate`, and conformed facts
-and dimensions are materialized in `marts`.
+`staging`; attribution models are materialized in `intermediate`, conformed facts and
+dimensions in `marts`, and business summaries in `analytics`. The forecasting pipeline
+reads analytics monthly totals and writes predictions to the `forecasting` schema.
 
 ## Tech Stack
 
@@ -62,6 +72,7 @@ and dimensions are materialized in `marts`.
 - DuckDB as the local analytical warehouse
 - PyArrow for columnar data interchange
 - dbt-duckdb for SQL transformations, modeling, and tests
+- statsmodels Holt exponential smoothing for revenue forecasting
 - pytest for Python testing
 - GNU Make for repeatable developer commands
 
@@ -73,8 +84,9 @@ and dimensions are materialized in `marts`.
 │   ├── raw/             # Immutable source data
 │   └── processed/       # Generated intermediate data
 ├── ingestion/           # Raw ingestion and validation code
-├── dbt_project/         # dbt staging, intermediate, and marts models with tests
-├── analytics/           # Future analytical SQL and execution utilities
+├── forecasting/         # Holt exponential-smoothing revenue forecasting pipeline
+├── dbt_project/         # dbt staging, intermediate, marts, and analytics models
+├── analytics/           # Reserved for ad-hoc SQL notebooks/utilities
 ├── outputs/             # Generated reports and query results
 ├── notebooks/           # Optional exploratory analysis
 ├── tests/               # Python tests
@@ -99,9 +111,10 @@ The starter assessment files currently remain unchanged in `data/`.
    last-touch channels, validate campaigns, and enrich source-grain revenue.
 5. **Completed: Star schema marts** — publish conformed dimensions and tested revenue,
    campaign ROI, and content performance facts.
-6. **Analytics** — answer the required channel, campaign, CAC, cohort, and revenue-trend
-   questions.
-7. **Forecasting** — generate transparent three-month forecasts by company and channel.
+6. **Completed: Analytics layer** — channel, campaign, company, and monthly growth
+   summaries built exclusively from marts.
+7. **Completed: Forecasting** — Holt exponential-smoothing 6-month portfolio revenue
+   forecast with evaluation metrics and historical comparison.
 8. **Documentation and verification** — publish assumptions, limitations, lineage,
    sample outputs, and reproducible setup instructions.
 
@@ -212,9 +225,30 @@ record count and total revenue from `int_attributed_revenue`.
 
 ## Forecasting Approach
 
-The completed pipeline will provide a three-month revenue forecast for each portfolio
-company. The baseline method, assumptions, failure modes, and evaluation approach will be
-documented when forecasting is implemented.
+The forecasting pipeline in `forecasting/run_forecast.py` predicts the next **6 months**
+of portfolio revenue using Holt's Exponential Smoothing from statsmodels
+(`trend="add"`, no seasonality, `optimized=True`).
+
+Why Holt's method:
+
+- It adapts level and trend over time instead of fitting one global linear slope.
+- It remains simple and explainable for a short 18-month series.
+- It better handles the growth-then-plateau pattern observed in monthly revenue.
+
+Training data comes only from `analytics.monthly_revenue_customer_growth` (never raw).
+Holdout MAE/RMSE/R² are computed on the final 3 historical months; the production model
+is then refit on the full series. Existing metrics columns `intercept` and `slope` store
+the final Holt level and trend for schema compatibility.
+
+Outputs written to DuckDB:
+
+- `forecasting.revenue_forecast` — future month, prediction, lower/upper bound
+- `forecasting.forecast_metrics` — MAE, RMSE, R², level, trend
+- `forecasting.forecast_comparison` — historical actual vs fitted and error
+
+Limitations: no seasonality or campaign shocks, constant residual variance intervals,
+portfolio-level only, and additive-trend smoothing can lag abrupt structural breaks.
+See [`forecasting/README.md`](forecasting/README.md) for full methodology detail.
 
 ## Running Instructions
 
@@ -249,14 +283,27 @@ dbt run --profiles-dir .
 dbt test --profiles-dir .
 ```
 
-From the repository root, `make transform` runs all dbt staging, intermediate, and marts
-models using the same local profile. Activate the project virtual environment first so
-`dbt` is available.
+From the repository root, `make transform` runs all dbt models using the same local
+profile. Activate the project virtual environment first so `dbt` is available.
 
-The following command names are reserved for later phases and currently print placeholder
-messages:
+Generate the revenue forecast after analytics models exist:
 
 ```bash
-make analytics
+make forecast
+# or
+python forecasting/run_forecast.py
+```
+
+Inspect forecast outputs:
+
+```sql
+SELECT * FROM forecasting.revenue_forecast ORDER BY month;
+SELECT * FROM forecasting.forecast_metrics;
+SELECT * FROM forecasting.forecast_comparison ORDER BY month;
+```
+
+End-to-end local rebuild:
+
+```bash
 make run
 ```
