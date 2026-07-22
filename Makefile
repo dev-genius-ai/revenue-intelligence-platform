@@ -1,4 +1,4 @@
-.PHONY: install ingest validate transform analytics forecast run
+.PHONY: install ingest validate transform analytics forecast anomaly dashboard run
 
 install:
 	python -m pip install -r requirements.txt
@@ -18,8 +18,15 @@ analytics:
 forecast:
 	python forecasting/run_forecast.py
 
+anomaly:
+	python anomaly_detection/run_anomaly_detection.py
+
+dashboard:
+	streamlit run streamlit_app/app.py
+
 run:
 	python ingestion/load_raw.py
 	python ingestion/validate.py
 	cd dbt_project && dbt run --profiles-dir .
 	python forecasting/run_forecast.py
+	python anomaly_detection/run_anomaly_detection.py

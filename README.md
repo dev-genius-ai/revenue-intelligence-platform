@@ -9,7 +9,8 @@ channel analytics, and short-term revenue forecasts.
 
 The repository is being developed incrementally. The project foundation, local raw
 ingestion layer, dbt staging layer, intermediate attribution engine, star schema
-marts, analytics layer, and Holt exponential-smoothing forecasting pipeline are complete.
+marts, analytics layer, Holt exponential-smoothing forecasting pipeline, Streamlit
+dashboard, and rolling z-score anomaly detection are complete.
 
 ## Architecture
 
@@ -53,10 +54,12 @@ warehouse.duckdb
 │   ├── campaign_performance
 │   ├── company_revenue_analysis
 │   └── monthly_revenue_customer_growth
-└── forecasting
-    ├── revenue_forecast
-    ├── forecast_metrics
-    └── forecast_comparison
+├── forecasting
+│   ├── revenue_forecast
+│   ├── forecast_metrics
+│   └── forecast_comparison
+└── anomaly
+    └── channel_revenue_anomalies
 ```
 
 The database location can be changed with `--db-path`. The source directory can be
@@ -64,6 +67,8 @@ changed with `--data-dir`. dbt reads only from `raw` and materializes cleaned ta
 `staging`; attribution models are materialized in `intermediate`, conformed facts and
 dimensions in `marts`, and business summaries in `analytics`. The forecasting pipeline
 reads analytics monthly totals and writes predictions to the `forecasting` schema.
+Anomaly detection reads analytics/marts inputs and writes
+`anomaly.channel_revenue_anomalies`.
 
 ## Tech Stack
 
@@ -85,6 +90,8 @@ reads analytics monthly totals and writes predictions to the `forecasting` schem
 │   └── processed/       # Generated intermediate data
 ├── ingestion/           # Raw ingestion and validation code
 ├── forecasting/         # Holt exponential-smoothing revenue forecasting pipeline
+├── anomaly_detection/   # Rolling z-score channel revenue anomaly detection
+├── streamlit_app/       # Read-only Streamlit dashboard
 ├── dbt_project/         # dbt staging, intermediate, marts, and analytics models
 ├── analytics/           # Reserved for ad-hoc SQL notebooks/utilities
 ├── outputs/             # Generated reports and query results
@@ -109,14 +116,11 @@ The starter assessment files currently remain unchanged in `data/`.
    and enforce generic schema and relationship tests.
 4. **Completed: Journey stitching and attribution** — resolve first-touch and
    last-touch channels, validate campaigns, and enrich source-grain revenue.
-5. **Completed: Star schema marts** — publish conformed dimensions and tested revenue,
-   campaign ROI, and content performance facts.
-6. **Completed: Analytics layer** — channel, campaign, company, and monthly growth
-   summaries built exclusively from marts.
-7. **Completed: Forecasting** — Holt exponential-smoothing 6-month portfolio revenue
-   forecast with evaluation metrics and historical comparison.
-8. **Documentation and verification** — publish assumptions, limitations, lineage,
-   sample outputs, and reproducible setup instructions.
+5. **Completed: Star schema marts** — conformed dimensions and attribution facts.
+6. **Completed: Analytics layer** — channel, campaign, company, and monthly summaries.
+7. **Completed: Forecasting** — Holt exponential smoothing 6-month revenue forecast.
+8. **Completed: Streamlit dashboard** — read-only Plotly views of warehouse outputs.
+9. **Completed: Anomaly detection** — rolling z-score channel monthly revenue anomalies.
 
 ## Data Sources
 
@@ -250,6 +254,75 @@ Limitations: no seasonality or campaign shocks, constant residual variance inter
 portfolio-level only, and additive-trend smoothing can lag abrupt structural breaks.
 See [`forecasting/README.md`](forecasting/README.md) for full methodology detail.
 
+## Anomaly Detection
+
+The anomaly detection pipeline in `anomaly_detection/run_anomaly_detection.py`
+flags months where a channel's last-touch attributed revenue diverges from its
+recent historical trend using a simple statistical baseline (no ML models).
+
+Approach:
+
+1. Aggregate monthly last-touch revenue by channel from
+   `marts.fct_attributed_revenue` (month spine from
+   `analytics.monthly_revenue_customer_growth`, channels from
+   `analytics.channel_performance`).
+2. For each channel (excluding `unknown`), compute a **6-month rolling mean** and
+   **rolling standard deviation** on the **prior** six months (full history
+   required; warm-up months are omitted from the output).
+3. Score the current month:
+
+```text
+z_score = (current_revenue - rolling_mean) / rolling_std
+expected_revenue = rolling_mean
+revenue_difference = current_revenue - expected_revenue
+deviation_percent = revenue_difference / expected_revenue * 100
+```
+
+4. Flag an anomaly when `ABS(z_score) >= 2.75`.
+
+Severity bands: `|z| < 2.75` or null → `normal`; `2.75–3.5` → `moderate`;
+`> 3.5` → `severe`. Direction is `positive` / `negative` for anomalies and
+`normal` otherwise. `anomaly_rank` orders anomalies by absolute z-score, and
+`explanation` summarizes each row in plain English. When `rolling_std = 0`,
+`z_score` is null and the row stays `normal`.
+
+Output table: `anomaly.channel_revenue_anomalies`.
+
+```bash
+make anomaly
+# or
+python anomaly_detection/run_anomaly_detection.py
+```
+
+See [`anomaly_detection/README.md`](anomaly_detection/README.md) for interpretation
+notes and limitations.
+
+## Streamlit Dashboard
+
+A read-only Streamlit app visualizes analytics, marts, and forecast outputs from
+`warehouse.duckdb` without changing any pipeline logic.
+
+Pages:
+
+- Executive Overview
+- Channel Performance
+- Campaign Performance
+- Company Analysis
+- Forecast
+- Attribution Comparison (first-touch vs last-touch)
+- Anomaly Detection
+
+Install dashboard packages and launch:
+
+```bash
+source .venv/bin/activate
+pip install -r streamlit_app/requirements.txt
+streamlit run streamlit_app/app.py
+```
+
+See [`streamlit_app/README.md`](streamlit_app/README.md) for filter behavior and data
+sources.
+
 ## Running Instructions
 
 Install dependencies and build the local raw layer from the repository root:
@@ -300,6 +373,22 @@ Inspect forecast outputs:
 SELECT * FROM forecasting.revenue_forecast ORDER BY month;
 SELECT * FROM forecasting.forecast_metrics;
 SELECT * FROM forecasting.forecast_comparison ORDER BY month;
+```
+
+Detect channel revenue anomalies after analytics models exist:
+
+```bash
+make anomaly
+# or
+python anomaly_detection/run_anomaly_detection.py
+```
+
+Inspect anomaly outputs:
+
+```sql
+SELECT * FROM anomaly.channel_revenue_anomalies
+WHERE is_anomaly
+ORDER BY ABS(z_score) DESC;
 ```
 
 End-to-end local rebuild:
